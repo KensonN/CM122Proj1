@@ -310,6 +310,7 @@ class readAligner():
                 lastReadPos = 0
 
 
+        print("test")
 
         print("Deletions:")
         for i in self.deletions:
