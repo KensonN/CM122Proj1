@@ -15,6 +15,7 @@ class readAligner():
     # substitutions = set()
     positionMap = dict()
     subsitutions = dict()
+    positions = []
 
     def __init__(self, genomeFile, readFile):
         self.genomeFile = genomeFile
@@ -89,6 +90,8 @@ class readAligner():
     def hammingDistance(self, str1, str2):
         hamming = 0
         if len(str1) != len(str2):
+            print(str1)
+            print(str2)
             raise ValueError("Input strings must have the same length")
         for i in range(len(str1)):
             if str1[i] != str2[i]:
@@ -113,18 +116,20 @@ class readAligner():
         for i in range(len(genomeString)):
             if genomeString[i] != readString[i] and genomeString[i] != ' ':
                 if (i+alignment, readString[i], genomeString[i]) not in self.subsitutions:
-                    self.subsitutions[(i+alignment, readString[i], genomeString[i])] = 0
+                    self.subsitutions[(i+alignment, readString[i], genomeString[i])] = 1
                 else:
                     self.subsitutions[(i+alignment, readString[i], genomeString[i])] +=1
                 mutation.append((i+alignment, readString[i], genomeString[i]))
         return mutation
 
     def align(self):
+        first = True
+        lastReadPos = 0
         for read in self.reads:
             # print(i[0], i[1], "READ")
             positions = [[-10]] * (len(read[1])-self.kmerSize+1)
             # print(i[0], i[1], len(i[1])-self.kmerSize+1)
-            for k in range(0, len(read[1])-self.kmerSize+1):
+            for k in range(lastReadPos, len(read[1])-self.kmerSize+1):
                 keys = list(self.genomeMap.keys())
                 for j in keys:
                     # print(j)
@@ -132,44 +137,47 @@ class readAligner():
                         if positions[k] == [-10]:
                             # print("if")
                             positions[k] = deepcopy(self.genomeMap[j])
-
                         else:
                             # print("else")
                             positions[k] += deepcopy(self.genomeMap[j])
                 # total += 1
-            last = None
-            # print(positions)
+            # print(positions, "pos")
             finalPositions = []
             # for i in range(len(positions)):
             #     if positions[i] == [-10]:
             #         print(i, end=", ")
             # print()
-
+            last = None
             counter = 0
             for k in positions:
                 for j in k:
                     # print("j=", j, end="| ")
                     if last == None:
-                        last = j
-                        finalPositions.append(j)
-                        counter = 0
+                        if j == -10:
+                            finalPositions.append(j)
+                        else:
+                            last = j
+                            finalPositions.append(j)
                         # print(j, "0")
                     elif abs((j-last)) <= 2 and j != -10: 
                         last = j
                         finalPositions.append(j)
-                        counter += 1
+                        counter = 0
                         # print(j, "1")
-                    elif counter > 8 and j == -10:
+                    elif counter <= self.kmerSize and j == -10:
                         last += 1
                         finalPositions.append(last)
                         counter+=1
-            # print(finalPositions)
+                # print(counter, j)
+            # print(finalPositions, "finalPos")
+            # print("---")
             first = None
             finalPositionsTwo = deepcopy(finalPositions)
             modifiedRead = read[1]
             for k in finalPositions:
                 if first == None:
-                    first = k
+                    if k != -10:
+                        first = k
                     continue
                 if k != first + 1:
                     diff = k - first
@@ -186,14 +194,16 @@ class readAligner():
                         # print("---")
                         # print(self.genome[finalPositions[0]:finalPositions[0]+50], "genome")
                         # print(modifiedRead, "modified read")
-                        if deletionLoc in self.deletions:
-                            self.deletions[deletionLoc] += 1
+                        deletion = (deletionLoc, self.genome[finalPositions[0] + delIndex])
+                        if deletion in self.deletions:
+                            self.deletions[deletion] += 1
                         else:
-                            self.deletions[deletionLoc] = 1
+                            self.deletions[deletion] = 1
                         # print(int((i+first)/2))
                 if k == first:
                     # print("insertion: ")
                     insertionLoc = first-1
+                    # print(insertionLoc)
                     # self.coverageMap[insertionLoc+1] -= 1
                     finalPositionsTwo.remove(insertionLoc+1)
                     insertionIndex = finalPositions.index(insertionLoc+1)
@@ -204,59 +214,136 @@ class readAligner():
                     # print(read[1])
                     # print("---")
                     # print(self.genome[finalPositions[0]:finalPositions[0]+50])
-                    # print(modifiedRead)   
-
-                    if insertionLoc in self.insertions:
-                        self.insertions[insertionLoc] += 1
+                    # print(modifiedRead)
+                    # print(modifiedRead[:insertionIndex])
+                    # print(read[1][insertionIndex])
+                    # print(modifiedRead[insertionIndex+1:])   
+                    insertion = (insertionLoc, read[1][insertionIndex])
+                    if insertion in self.insertions:
+                        self.insertions[insertion] += 1
                     else:
-                        self.insertions[insertionLoc] = 1
+                        self.insertions[insertion] = 1
                     first = k
                 first = k
-            # print(finalPositionsTwo)
+            self.positions.append(finalPositionsTwo)
             # print(read[1])
             # print(self.genome[262:262+50])
+            # print(finalPositionsTwo, "finalPosTwo")
 
-            for pos in finalPositionsTwo:
-                if pos != -10:
-                    self.coverageMap[pos] += 1
+            # if 533 in finalPositionsTwo:
+            #     print(finalPositionsTwo)
+
+            lastPos = None
+            if len(finalPositionsTwo) > 0:
+                for pos in finalPositionsTwo:
+                    if pos != -10:
+                        self.coverageMap[pos] += 1
+                        lastPos = pos
+                        # print(pos)
+                if lastPos != None:
+                    for j in range(1, self.kmerSize):
+                        self.coverageMap[lastPos+j] += 1
+                    # lastReadPos = lastPos + self.kmerSize-1
+
+                
+                    # print(lastPos+j)
+                # print(self.coverageMap)
+                # break
+                # for pos in range(len(read[1])):
+                #     if finalPositionsTwo[0] != -10:
+                #         # if finalPositionsTwo[0]+pos == 544:
+                #         #     print(finalPositionsTwo)
+                #         self.coverageMap[finalPositionsTwo[0]+pos] += 1
+            # for pos in finalPositionsTwo:
+            #     if pos != -10:
+            #         self.coverageMap[pos] += 1
+                    
                     # for j in range(0, self.kmerSize):
                         # self.coverageMap[pos+j] += 1
 
-            if [-10] != finalPositionsTwo and self.hammingDistance(modifiedRead, self.genome[finalPositionsTwo[0]:finalPositionsTwo[0]+len(modifiedRead)]) <= self.allowedErrors:
-                
-                # mutations = (self.getSubstitutions(modifiedRead, self.genome[finalPositionsTwo[0]:finalPositionsTwo[0]+len(modifiedRead)], finalPositionsTwo[0]))
-                self.getSubstitutions(modifiedRead, self.genome[finalPositionsTwo[0]:finalPositionsTwo[0]+len(modifiedRead)], finalPositionsTwo[0])
-                # if len(mutations) > 0:
-                #     print(read[1], "READ")
-                #     print(modifiedRead, "MODIFIED")
-                #     print(self.genome[finalPositionsTwo[0]:finalPositionsTwo[0]+len(modifiedRead)], "GENOME")
-                # for i in mutations:
-                #     self.substitutions.add(i)
-                    # print(i)
-                for position in range(len(finalPositionsTwo)):
-                    for i in range(self.kmerSize):
-                        # print(finalPositionsTwo[position] + i, modifiedRead[i+position], self.genome[finalPositionsTwo[position] + i]  ,end=" ")
-                        # print()
-                        self.positionMap[finalPositionsTwo[position] + i].append(modifiedRead[i+position])
-                        pass
-                    # print()
-                    # print("---")
-                    pass
+
+                stringAlignment = 0
+                genomeString = ""
+                if finalPositionsTwo[0] == -10 and finalPositionsTwo[-1] == -10:
+                    stringAlignment = 999
+                elif finalPositionsTwo[0] == -10:
+                    genomeString = self.genome[finalPositionsTwo[-1]-len(modifiedRead)+self.kmerSize:finalPositionsTwo[-1]+self.kmerSize]
+                    stringAlignment = self.hammingDistance(modifiedRead, self.genome[finalPositionsTwo[-1]-len(modifiedRead):finalPositionsTwo[-1]])
+                    # print(len(modifiedRead))
+                    # print(finalPositionsTwo[-1]-len(modifiedRead))
+                    # print(modifiedRead, "modified")
+                    # print(genomeString, "genome")
+                    # break
+                else:
+                    genomeString = self.genome[finalPositionsTwo[0]:finalPositionsTwo[0]+len(modifiedRead)]
+                    stringAlignment = self.hammingDistance(modifiedRead, genomeString)
+
+                # print(modifiedRead, "modified")
+                # print(genomeString, "genome")
+
+
+                if [-10] != finalPositionsTwo and stringAlignment <= self.allowedErrors:
+                    
+                    # mutations = (self.getSubstitutions(modifiedRead, self.genome[finalPositionsTwo[0]:finalPositionsTwo[0]+len(modifiedRead)], finalPositionsTwo[0]))
+                    mutation = self.getSubstitutions(modifiedRead, self.genome[finalPositionsTwo[0]:finalPositionsTwo[0]+len(modifiedRead)], finalPositionsTwo[0])
+                    # if len(mutation) > 0:
+                    #     print(finalPositionsTwo)
+                    # if len(self.subsitutions) > 2:
+                    #     break
+                    # for i in mutations:
+                    #     self.substitutions.add(i)
+                        # print(i)
+                    # for position in range(len(finalPositionsTwo)):
+                    #     for i in range(self.kmerSize):
+                    #         # print(finalPositionsTwo[position] + i, modifiedRead[i+position], self.genome[finalPositionsTwo[position] + i]  ,end=" ")
+                    #         # print()
+                    #         self.positionMap[finalPositionsTwo[position] + i].append(modifiedRead[i+position])
+                    #         pass
+                    #     # print()
+                    #     # print("---")
+                    #     pass
         # print(self.possibleIndices)
         # print(found, total)
         # print(self.coverageMap)
+
+
+
         print("Deletions:")
         for i in self.deletions:
-            print(i, self.deletions[i], self.coverageMap[i])
+            print(i, self.deletions[i], self.coverageMap[i[0]])
         print("---")
         # print("deletions: ", self.deletions)
         print("Insertions: ", self.insertions)
         for i in self.insertions:
-            print(i, self.insertions[i], self.coverageMap[i])
+            print(i, self.insertions[i], self.coverageMap[i[0]])
         print("---")
         print("Substitutions:")
+        print(self.subsitutions)
         for i in self.subsitutions:
             print(i, self.subsitutions[i], self.coverageMap[i[0]])
+        # print(self.positions)
+        # for i in range(0, len(self.positions), 2):
+        #     print(self.positions[i])
+        #     print(self.positions[i+1])
+        #     print("---")
+        # print(len(self.positions))
+        print("Deletions:", self.deletions)
+        for i in self.deletions:
+            if self.deletions[i] / self.coverageMap[i[0]] > 0.25 and self.coverageMap[i[0]] > 1 and self.deletions[i] > 1:
+                print(i, self.deletions[i], self.coverageMap[i[0]])
+        print("---")
+        # print("deletions: ", self.deletions)
+        print("Insertions: ", self.insertions)
+        for i in self.insertions:
+            if self.insertions[i] / self.coverageMap[i[0]] > 0.25 and self.coverageMap[i[0]] > 1 and self.insertions[i] > 1:
+                print(i, self.insertions[i], self.coverageMap[i[0]])
+        print("---")
+        print("Substitutions:")
+        # print(self.subsitutions)
+        for i in self.subsitutions:
+            if self.subsitutions[i] / self.coverageMap[i[0]] > 0.25:
+                print(i, self.subsitutions[i], self.coverageMap[i[0]])
+        # print(self.coverageMap)
         # print("Subsitutions:", sorted(self.substitutions))
 
 referenceGenome = "sample_1000\sample_1000_reference_genome.fasta"
@@ -265,6 +352,8 @@ referenceGenome = "sample_1000\sample_1000_reference_genome.fasta"
 reads = "sample_1000\sample_1000_no_error_single_reads.fasta"
 # reads = "sample_1000\sample_1000_with_error_single_reads.fasta"
 # reads = "sample_1000\sample_1000_with_error_paired_reads.fasta"
+# reads = "sample_1000\sample_1000_no_error_paired_reads REDUCED.fasta"
+# reads = "sample_1000\sample_1000_no_error_paired_reads.fasta"
 # reads = "sample_1000\DELETION.fasta"
 # reads = "sample_1000\INSERTION.fasta"
 # reads = "sample_1000\REDUCED.fasta"
