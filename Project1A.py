@@ -32,6 +32,8 @@ class readAligner():
             self.coverageMap[i] = 0
             # self.positionMap[i] = []
         # self.coverageMap[-10] = 0
+        self.align()
+        self.writeResults()
 
     def importGenome(self):
         with open(self.genomeFile) as f:
@@ -131,10 +133,13 @@ class readAligner():
         lastReadPos = 0
         startTime = time.perf_counter()
         lastCurrentTime = 0
-        for read in self.reads:
+        for count, read in enumerate(self.reads):
             # print(lastReadPos)
             currentTime = time.perf_counter() - startTime
-            print(read[0], read[1], "READ", lastReadPos, currentTime, currentTime - lastCurrentTime)
+            if count == len(self.reads) - 1:
+                print(read[0], lastReadPos, round(currentTime, 3), round(currentTime - lastCurrentTime, 3), end='\n')
+            else:
+                print(read[0], lastReadPos, round(currentTime, 3), round(currentTime - lastCurrentTime, 3), end='\r')
             lastCurrentTime = currentTime
             positions = [[-10]] * (len(read[1])-self.kmerSize+1)
             # print(i[0], i[1], len(i[1])-self.kmerSize+1)
@@ -144,10 +149,8 @@ class readAligner():
                     # print(j)
                     if self.hammingDistance(read[1][kmerPos:kmerPos+self.kmerSize], key) == 0:
                         if positions[kmerPos] == [-10]:
-                            # print("if")
                             positions[kmerPos] = deepcopy(self.genomeMap[key])
                         else:
-                            # print("else")
                             positions[kmerPos] += deepcopy(self.genomeMap[key])
                 # total += 1
             # print(positions, "pos")
@@ -159,26 +162,31 @@ class readAligner():
             last = None
             counter = 0
             streak = 0
+            print(positions)
             for pos in range(len(positions)):
                 for posItem in positions[pos]:
-                    # print("posItem=", posItem, "counter:", counter, "streak:", streak)
-                    # print(finalPositions)
+                    print("posItem=", posItem, "counter:", counter, "streak:", streak, "last:", last)
                     if last == None:
                         if posItem == -10:
                             finalPositions.append(posItem)
+                            counter += 1
                         else:
                             last = posItem
                             finalPositions.append(posItem)
-                        # print(j, "0")
+                            streak+=1
+                            if pos > 0:
+                                for l in range(1, counter+1):
+                                    # print(pos-l-1, "posl")
+                                    finalPositions[pos-l] = posItem - l
+                                    streak+=1
+                                    pass
                     elif posItem != -10:
-                        if abs((posItem-last)) <= 2:
-                            # print("if")
+                        if abs((posItem-last)) <= 5:
                             last = posItem
                             finalPositions.append(posItem)
                             streak += 1
                             counter = 0
                         else:
-                            # print("else")
                             # print(counter, "counter")
                             # print(finalPositions, "final")
                             if streak < 2:
@@ -189,17 +197,20 @@ class readAligner():
                                 last = posItem
                                 finalPositions.append(posItem)
                                 counter = 0
+                            finalPositions.append(last+1)
+                            last +=1
                     # elif abs((j-last)) <= 2 and j != -10: 
                     #     last = j
                     #     finalPositions.append(j)
                     #     counter = 0
                     #     # print(j, "1")
                     elif posItem == -10:
-                        
+                        # print("-10")
                         # if counter <= 2*self.kmerSize:
                         last += 1
                         finalPositions.append(last)
                         counter+=1
+                    print(finalPositions)
                     # elif counter <= self.kmerSize and j == -10:
                     #     last += 1
                     #     finalPositions.append(last)
@@ -207,19 +218,27 @@ class readAligner():
             last = None
             counter = 0
 
-            #fill in -10s
-            if len(finalPositions) > 0:
-                if finalPositions[0] == -10:
-                    realFound = 0
-                    for count, item in enumerate(finalPositions):
-                        if item != -10:
-                            for i in range(1, count+1):
-                                finalPositions[count - i] = item - i
-                            break
+            if len(finalPositions) == 0:
+                continue
+            
+            #fill in -10s            
+            if finalPositions[0] == -10:
+                for count, item in enumerate(finalPositions):
+                    if item != -10:
+                        for i in range(1, count+1):
+                            finalPositions[count - i] = item - i
+                        break
 
             first = None
             finalPositionsTwo = deepcopy(finalPositions)
             modifiedRead = read[1]
+            print(modifiedRead, "read")
+            print(self.genome[finalPositions[0]:finalPositions[0]+50], "genome")
+
+            # if -10 in finalPositions:
+            #     print("skipping", read)
+            #     continue
+
             for k in finalPositions:
                 if first == None:
                     if k != -10:
@@ -240,6 +259,13 @@ class readAligner():
                         # print("---")
                         # print(self.genome[finalPositions[0]:finalPositions[0]+50], "genome")
                         # print(modifiedRead, "modified read")
+                        if deletionLoc < 0:
+                            print(read)
+                            print(positions, "pos")
+                            print(finalPositions, "final")
+                            print(finalPositionsTwo, "finalTwo")
+                            print("---")
+                            break
                         deletion = (deletionLoc, self.genome[finalPositions[0] + delIndex])
                         if deletion in self.deletions:
                             self.deletions[deletion] += 1
@@ -249,13 +275,13 @@ class readAligner():
                 if k == first:
                     # print("insertion: ")
                     insertionLoc = first-1
-                    # if insertionLoc == -11:
-                    #     print(read)
-                    #     print(positions, "pos")
-                    #     print(finalPositions, "final")
-                    #     print(finalPositionsTwo, "finalTwo")
-                    #     print("---")
-                    #     break
+                    if insertionLoc < 0:
+                        print(read)
+                        print(positions, "pos")
+                        print(finalPositions, "final")
+                        print(finalPositionsTwo, "finalTwo")
+                        print("---")
+                        break
                     # print(insertionLoc)
                     # self.coverageMap[insertionLoc+1] -= 1
                     finalPositionsTwo.remove(insertionLoc+1)
@@ -301,7 +327,7 @@ class readAligner():
                     # print("1")
                     genomeString = self.genome[finalPositionsTwo[-1]-len(modifiedRead)+self.kmerSize:finalPositionsTwo[-1]+self.kmerSize]
                     stringAlignment = self.hammingDistance(modifiedRead, genomeString)
-                    print(stringAlignment, "stringAlignment")
+                    # print(stringAlignment, "stringAlignment")
                 else:
                     # print("2")
                     genomeString = self.genome[finalPositionsTwo[0]:finalPositionsTwo[0]+len(modifiedRead)]
@@ -348,26 +374,26 @@ class readAligner():
         # for i in self.substitutions:
         #     print(i, self.substitutions[i], self.coverageMap[i[0]])
         # print("---")
-      
-        # print("Deletions:")
+        
+        print("Deletions:", self.deletions)
         for i in self.deletions:
             if self.deletions[i] / self.coverageMap[i[0]] > 0.25 and self.coverageMap[i[0]] > 1 and self.deletions[i] > 1:
                 self.finalDeletions[i] = self.deletions[i]
-                # print(i, self.deletions[i], self.coverageMap[i[0]])
+                print(i, self.deletions[i], self.coverageMap[i[0]])
         # print("---")
         # print("deletions: ", self.deletions)
-        # print("Insertions: ")
+        print("Insertions: ", self.insertions)
         for i in self.insertions:
             if self.insertions[i] / self.coverageMap[i[0]] > 0.25 and self.coverageMap[i[0]] > 1 and self.insertions[i] > 1:
                 self.finalInsertions[i] = self.insertions[i]
-                # print(i, self.insertions[i], self.coverageMap[i[0]])
+                print(i, self.insertions[i], self.coverageMap[i[0]])
         # print("---")
         # print("Substitutions:")
-        # print(self.substitutions)
+        print("Subsitutions", self.substitutions)
         for i in self.substitutions:
             if self.substitutions[i] / self.coverageMap[i[0]] > 0.5:
                 self.finalSubstitutions[i] = self.substitutions[i]
-                # print(i, self.substitutions[i], self.coverageMap[i[0]])
+                print(i, self.substitutions[i], self.coverageMap[i[0]])
 
     
         # print(self.coverageMap)
@@ -415,9 +441,7 @@ referenceGenome = "project1a_10000_reference_genome.fasta"
 # reads = "sample_1000\DELETION.fasta"
 # reads = "sample_1000\INSERTION.fasta"
 # reads = "sample_1000\REDUCED.fasta"
-reads = "project1a_10000_with_error_paired_reads.fasta"
-# reads = "project1a_10000_with_error_paired_reads_TEST.fasta"
+# reads = "project1a_10000_with_error_paired_reads.fasta"
+reads = "project1a_10000_with_error_paired_reads_TEST.fasta"
 
 aligner = readAligner(genomeFile=referenceGenome, readFile=reads)
-aligner.align()
-aligner.writeResults()
