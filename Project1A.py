@@ -1,5 +1,6 @@
 import sys
 from copy import deepcopy
+import time
 
 class readAligner():
     kmerSize = 10
@@ -90,8 +91,8 @@ class readAligner():
     def hammingDistance(self, str1, str2):
         hamming = 0
         if len(str1) != len(str2):
-            print(str1)
-            print(str2)
+            print(str1, "s1")
+            print(str2, "s2")
             raise ValueError("Input strings must have the same length")
         for i in range(len(str1)):
             if str1[i] != str2[i]:
@@ -123,14 +124,19 @@ class readAligner():
         return mutation
 
     def align(self):
-        first = True
+        firstPair = True
         lastReadPos = 0
+        startTime = time.perf_counter()
+        lastCurrentTime = 0
         for read in self.reads:
-            # print(i[0], i[1], "READ")
+            # print(lastReadPos)
+            currentTime = time.perf_counter() - startTime
+            print(read[0], read[1], "READ", lastReadPos, currentTime, currentTime - lastCurrentTime)
+            lastCurrentTime = currentTime
             positions = [[-10]] * (len(read[1])-self.kmerSize+1)
             # print(i[0], i[1], len(i[1])-self.kmerSize+1)
-            for k in range(lastReadPos, len(read[1])-self.kmerSize+1):
-                keys = list(self.genomeMap.keys())
+            for k in range(0, len(read[1])-self.kmerSize+1):
+                keys = list(self.genomeMap.keys())[lastReadPos:]
                 for j in keys:
                     # print(j)
                     if self.hammingDistance(read[1][k:k+self.kmerSize], j) == 0:
@@ -159,15 +165,46 @@ class readAligner():
                             last = j
                             finalPositions.append(j)
                         # print(j, "0")
-                    elif abs((j-last)) <= 2 and j != -10: 
-                        last = j
-                        finalPositions.append(j)
-                        counter = 0
-                        # print(j, "1")
-                    elif counter <= self.kmerSize and j == -10:
-                        last += 1
-                        finalPositions.append(last)
-                        counter+=1
+                    elif j!= -10:
+                        if abs((j-last)) <= 2:
+                            last = j
+                            finalPositions.append(j)
+                            counter = 0
+                    # elif abs((j-last)) <= 2 and j != -10: 
+                    #     last = j
+                    #     finalPositions.append(j)
+                    #     counter = 0
+                    #     # print(j, "1")
+                    elif j == -10:
+                        if counter <= self.kmerSize:
+                            last += 1
+                            finalPositions.append(last)
+                            counter+=1
+                    # elif counter <= self.kmerSize and j == -10:
+                    #     last += 1
+                    #     finalPositions.append(last)
+                    #     counter+=1
+            last = None
+            counter = 0
+            # for k in range(1, len(positions)):
+            #     for j in k:
+            #         # print("j=", j, end="| ")
+            #         if last == None:
+            #             if j == -10:
+            #                 finalPositions.append(j)
+            #             else:
+            #                 last = j
+            #                 finalPositions.append(j)
+            #             # print(j, "0")
+            #         elif abs((j-last)) <= 2 and j != -10: 
+            #             last = j
+            #             finalPositions.append(j)
+            #             counter = 0
+            #             # print(j, "1")
+            #         elif counter <= self.kmerSize and j == -10:
+            #             last += 1
+            #             finalPositions.append(last)
+            #             counter+=1
                 # print(counter, j)
             # print(finalPositions, "finalPos")
             # print("---")
@@ -226,12 +263,7 @@ class readAligner():
                     first = k
                 first = k
             self.positions.append(finalPositionsTwo)
-            # print(read[1])
-            # print(self.genome[262:262+50])
-            # print(finalPositionsTwo, "finalPosTwo")
 
-            # if 533 in finalPositionsTwo:
-            #     print(finalPositionsTwo)
 
             lastPos = None
             if len(finalPositionsTwo) > 0:
@@ -243,68 +275,39 @@ class readAligner():
                 if lastPos != None:
                     for j in range(1, self.kmerSize):
                         self.coverageMap[lastPos+j] += 1
-                    # lastReadPos = lastPos + self.kmerSize-1
-
-                
-                    # print(lastPos+j)
-                # print(self.coverageMap)
-                # break
-                # for pos in range(len(read[1])):
-                #     if finalPositionsTwo[0] != -10:
-                #         # if finalPositionsTwo[0]+pos == 544:
-                #         #     print(finalPositionsTwo)
-                #         self.coverageMap[finalPositionsTwo[0]+pos] += 1
-            # for pos in finalPositionsTwo:
-            #     if pos != -10:
-            #         self.coverageMap[pos] += 1
                     
-                    # for j in range(0, self.kmerSize):
-                        # self.coverageMap[pos+j] += 1
+                    if firstPair == True:
+                        lastReadPos = lastPos+self.kmerSize-1
 
 
                 stringAlignment = 0
                 genomeString = ""
+                print(lastReadPos, lastReadPos)
+                print(positions)
+                print(finalPositions)
+                print(finalPositionsTwo)
                 if finalPositionsTwo[0] == -10 and finalPositionsTwo[-1] == -10:
                     stringAlignment = 999
                 elif finalPositionsTwo[0] == -10:
                     genomeString = self.genome[finalPositionsTwo[-1]-len(modifiedRead)+self.kmerSize:finalPositionsTwo[-1]+self.kmerSize]
                     stringAlignment = self.hammingDistance(modifiedRead, self.genome[finalPositionsTwo[-1]-len(modifiedRead):finalPositionsTwo[-1]])
-                    # print(len(modifiedRead))
-                    # print(finalPositionsTwo[-1]-len(modifiedRead))
-                    # print(modifiedRead, "modified")
-                    # print(genomeString, "genome")
-                    # break
                 else:
                     genomeString = self.genome[finalPositionsTwo[0]:finalPositionsTwo[0]+len(modifiedRead)]
                     stringAlignment = self.hammingDistance(modifiedRead, genomeString)
 
-                # print(modifiedRead, "modified")
-                # print(genomeString, "genome")
-
-
+                stringAlignment = self.hammingDistance(modifiedRead, genomeString)
+                
                 if [-10] != finalPositionsTwo and stringAlignment <= self.allowedErrors:
                     
-                    # mutations = (self.getSubstitutions(modifiedRead, self.genome[finalPositionsTwo[0]:finalPositionsTwo[0]+len(modifiedRead)], finalPositionsTwo[0]))
                     mutation = self.getSubstitutions(modifiedRead, self.genome[finalPositionsTwo[0]:finalPositionsTwo[0]+len(modifiedRead)], finalPositionsTwo[0])
-                    # if len(mutation) > 0:
-                    #     print(finalPositionsTwo)
-                    # if len(self.subsitutions) > 2:
-                    #     break
-                    # for i in mutations:
-                    #     self.substitutions.add(i)
-                        # print(i)
-                    # for position in range(len(finalPositionsTwo)):
-                    #     for i in range(self.kmerSize):
-                    #         # print(finalPositionsTwo[position] + i, modifiedRead[i+position], self.genome[finalPositionsTwo[position] + i]  ,end=" ")
-                    #         # print()
-                    #         self.positionMap[finalPositionsTwo[position] + i].append(modifiedRead[i+position])
-                    #         pass
-                    #     # print()
-                    #     # print("---")
-                    #     pass
-        # print(self.possibleIndices)
-        # print(found, total)
-        # print(self.coverageMap)
+
+            if firstPair == True:
+                # print("T")
+                firstPair = False
+            elif firstPair == False:
+                # print("F")
+                firstPair = True
+                lastReadPos = 0
 
 
 
@@ -321,6 +324,7 @@ class readAligner():
         print(self.subsitutions)
         for i in self.subsitutions:
             print(i, self.subsitutions[i], self.coverageMap[i[0]])
+        print("---")
         # print(self.positions)
         # for i in range(0, len(self.positions), 2):
         #     print(self.positions[i])
@@ -349,15 +353,16 @@ class readAligner():
 referenceGenome = "sample_1000\sample_1000_reference_genome.fasta"
 # referenceGenome = "project1a_10000_reference_genome.fasta"
 
-reads = "sample_1000\sample_1000_no_error_single_reads.fasta"
+# reads = "sample_1000\sample_1000_no_error_single_reads.fasta"
 # reads = "sample_1000\sample_1000_with_error_single_reads.fasta"
 # reads = "sample_1000\sample_1000_with_error_paired_reads.fasta"
 # reads = "sample_1000\sample_1000_no_error_paired_reads REDUCED.fasta"
 # reads = "sample_1000\sample_1000_no_error_paired_reads.fasta"
-# reads = "sample_1000\DELETION.fasta"
+reads = "sample_1000\DELETION.fasta"
 # reads = "sample_1000\INSERTION.fasta"
 # reads = "sample_1000\REDUCED.fasta"
 # reads = "project1a_10000_with_error_paired_reads.fasta"
+# reads = "project1a_10000_with_error_paired_reads_TEST.fasta"
 
 aligner = readAligner(genomeFile=referenceGenome, readFile=reads)
 aligner.align()
