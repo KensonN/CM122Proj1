@@ -128,47 +128,47 @@ class readAligner():
                 mutation.append((i+alignment, readString[i], genomeString[i]))
         return mutation
 
-    def getStreak(self, positions):
-        streakArray = []
-        for count, pos in enumerate(positions):
-            if pos != [-10]:
-                streakArray.append(pos)
-        streaks = []
-        # print(streakArray)
-        # sum = 0
-        # for i in streakArray:
-        #     sum+=i[0]
-        # sum /= len(streakArray)
-        # print("avg", sum)
-        for count, streakPos in enumerate(streakArray):
-            concurrentNumbers = [streakPos[0]]
+    # def getStreak(self, positions):
+    #     streakArray = []
+    #     for count, pos in enumerate(positions):
+    #         if pos != [-10]:
+    #             streakArray.append(pos)
+    #     streaks = []
+    #     # print(streakArray)
+    #     # sum = 0
+    #     # for i in streakArray:
+    #     #     sum+=i[0]
+    #     # sum /= len(streakArray)
+    #     # print("avg", sum)
+    #     for count, streakPos in enumerate(streakArray):
+    #         concurrentNumbers = [streakPos[0]]
 
-            cont = False
-            for o in streaks:
-                print(streakPos[0], "pos")
-                print(o, "o")
-                if streakPos[0] in o:
-                    cont = True
-                    break
+    #         cont = False
+    #         for o in streaks:
+    #             print(streakPos[0], "pos")
+    #             print(o, "o")
+    #             if streakPos[0] in o:
+    #                 cont = True
+    #                 break
 
-            if cont == True:
-                continue
+    #         if cont == True:
+    #             continue
 
-            for k in range(count, len(streakArray)-1):
-                print(streakArray[k])
-                cont = False
-                for o in streaks:
-                    # print(streakArray[k][0], o)
-                    pass
+    #         for k in range(count, len(streakArray)-1):
+    #             print(streakArray[k])
+    #             cont = False
+    #             for o in streaks:
+    #                 # print(streakArray[k][0], o)
+    #                 pass
 
-                if streakArray[k+1][0] == (streakArray[k][0] + 1):
-                    concurrentNumbers.append(streakArray[k+1][0])
-                    # print(streakArray[k+1][0], "concurrent")
-                else:
-                    continue
-                    # last+=1
-            streaks.append(concurrentNumbers)
-        print(streaks, "concurrent")
+    #             if streakArray[k+1][0] == (streakArray[k][0] + 1):
+    #                 concurrentNumbers.append(streakArray[k+1][0])
+    #                 # print(streakArray[k+1][0], "concurrent")
+    #             else:
+    #                 continue
+    #                 # last+=1
+    #         streaks.append(concurrentNumbers)
+    #     print(streaks, "concurrent")
     #         pass
         
         # print(streakArray)
@@ -202,7 +202,12 @@ class readAligner():
         lastCurrentTime = 0
         for count, read in enumerate(self.reads):
             # print(lastReadPos)
-            if read[0].split("/")[1] == '1':
+            # print(read)
+            readSplit = read[0].split("/")
+            if len(readSplit) > 1:
+                if read[0].split("/")[1] == '1':
+                    lastReadPos = 0
+            else:
                 lastReadPos = 0
 
             currentTime = time.perf_counter() - startTime
@@ -291,21 +296,22 @@ class readAligner():
             first = None
             finalPositionsTwo = deepcopy(finalPositions)
             modifiedRead = read[1]
-            print(modifiedRead, "read")
-            print(self.genome[finalPositions[0]:finalPositions[0]+50], "genome")
+            # print(modifiedRead, "read")
+            # print(self.genome[finalPositions[0]:finalPositions[0]+50], "genome")
 
-            # if -10 in finalPositions:
-            #     lastReadPos = 0
-            #     print()
-            #     print("skipping", read)
-            #     print()
-            #     f = open("skips.txt", "w")
-            #     f.write("Skipping: ")
-            #     f.write(str(read[0]))
-            #     f.write(" ")
-            #     f.write(str(read[1]))
-            #     f.write('\n')
-            #     continue
+            if -10 in finalPositions:
+                lastReadPos = 0
+                print()
+                print("skipping", read)
+                print()
+                continue
+                # f = open("skips.txt", "w")
+                # f.write("Skipping: ")
+                # f.write(str(read[0]))
+                # f.write(" ")
+                # f.write(str(read[1]))
+                # f.write('\n')
+                # continue
 
             for k in finalPositions:
                 if first == None:
@@ -368,7 +374,7 @@ class readAligner():
                 stringAlignment = 0
                 genomeString = ""
 
-                self.getStreak(positions)
+                # self.getStreak(positions)
 
                 # print(positions, "positions")
                 # print(finalPositions, "finalPos")
@@ -405,26 +411,42 @@ class readAligner():
         
         print("Deletions:" )
         for i in self.deletions:
-            if self.deletions[i] / self.coverageMap[i[0]] > 0.25 and self.coverageMap[i[0]] > 1 and self.deletions[i] > 1:
+            print(i, self.deletions[i], self.coverageMap[i[0]])
+        # print("---")
+        # print("deletions: ", self.deletions)
+        print("Insertions: ")
+        for i in self.insertions:
+            print(i, self.insertions[i], self.coverageMap[i[0]])
+        # print("---")
+        # print("Substitutions:")
+        print("Subsitutions")
+        for i in self.substitutions:
+            print(i, self.substitutions[i], self.coverageMap[i[0]])
+
+        print('\n', "---", '\n')
+
+        print("Deletions:" )
+        for i in self.deletions:
+            if self.deletions[i] / self.coverageMap[i[0]] > 0.20 and self.coverageMap[i[0]] > 1 and self.deletions[i] > 1:
                 self.finalDeletions[i] = self.deletions[i]
                 print(i, self.deletions[i], self.coverageMap[i[0]])
         # print("---")
         # print("deletions: ", self.deletions)
         print("Insertions: ")
         for i in self.insertions:
-            if self.insertions[i] / self.coverageMap[i[0]] > 0.25 and self.coverageMap[i[0]] > 1 and self.insertions[i] > 1:
+            if self.insertions[i] / self.coverageMap[i[0]] > 0.20 and self.coverageMap[i[0]] > 1 and self.insertions[i] > 1:
                 self.finalInsertions[i] = self.insertions[i]
                 print(i, self.insertions[i], self.coverageMap[i[0]])
         # print("---")
         # print("Substitutions:")
         print("Subsitutions")
         for i in self.substitutions:
-            if self.substitutions[i] / self.coverageMap[i[0]] > 0.5:
+            if self.substitutions[i] / self.coverageMap[i[0]] > 0.5 and self.coverageMap[i[0]] > 1 and self.substitutions[i] > 1:
                 self.finalSubstitutions[i] = self.substitutions[i]
                 print(i, self.substitutions[i], self.coverageMap[i[0]])
 
     def writeResults(self):
-        f = open("predictions.csv", "w")
+        f = open("predictionsTest.csv", "w")
         for i in self.finalSubstitutions:
             f.write(">S")
             f.write(str(i[0]))
@@ -446,8 +468,10 @@ class readAligner():
             f.write(str(i[1]))
             f.write('\n')
 
+
+
 # referenceGenome = "sample_1000\sample_1000_reference_genome.fasta"
-referenceGenome = "project1a_10000_reference_genome.fasta"
+# referenceGenome = "project1a_10000_reference_genome.fasta"
 
 # reads = "sample_1000\sample_1000_no_error_single_reads.fasta"
 # reads = "sample_1000\sample_1000_with_error_single_reads.fasta"
@@ -459,6 +483,9 @@ referenceGenome = "project1a_10000_reference_genome.fasta"
 # reads = "sample_1000\INSERTION.fasta"
 # reads = "sample_1000\REDUCED.fasta"
 # reads = "project1a_10000_with_error_paired_reads.fasta"
-reads = "project1a_10000_with_error_paired_reads_TEST.fasta"
+# reads = "project1a_10000_with_error_paired_reads_TEST.fasta"
+
+referenceGenome = sys.argv[1]
+reads = sys.argv[2]
 
 aligner = readAligner(genomeFile=referenceGenome, readFile=reads)
