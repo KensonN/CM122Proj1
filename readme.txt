@@ -8,4 +8,4 @@ To change the genome or paired reads file used, simply change the file paths.
 
 NOTE: With the 10000 length reference genome and a kmer size of 10, the program takes around 15 minutes to run. Progress can be checked via the console output of the program, with the current read number being printed out along with the time elapsed. 
 
-Results will be printed out to the console and in predictions.csv. The results filepath can be easily modified within the program. 
+Results will be printed out to the console and formatted in mutations.txt. The results file path and file name can be easily modified within the program. 

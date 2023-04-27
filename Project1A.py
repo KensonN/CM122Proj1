@@ -446,7 +446,7 @@ class readAligner():
                 print(i, self.substitutions[i], self.coverageMap[i[0]])
 
     def writeResults(self):
-        f = open("predictionsTest.csv", "w")
+        f = open("mutations.txt", "w")
         for i in self.finalSubstitutions:
             f.write(">S")
             f.write(str(i[0]))
