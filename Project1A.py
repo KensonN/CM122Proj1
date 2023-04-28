@@ -265,7 +265,7 @@ class readAligner():
             if count == len(self.reads) - 1:
                 print(read[0], lastReadPos, round(currentTime, 3), round(currentTime - lastCurrentTime, 3), end='\n')
             else:
-                print(read[0], lastReadPos, round(currentTime, 3), round(currentTime - lastCurrentTime, 3), end='\n')
+                print(read[0], lastReadPos, round(currentTime, 3), round(currentTime - lastCurrentTime, 3), end='\r')
             lastCurrentTime = currentTime
             positions = [[-10]] * (len(read[1])-self.kmerSize+1)
             # print(i[0], i[1], len(i[1])-self.kmerSize+1)
@@ -417,21 +417,21 @@ class readAligner():
                 first = k
             self.positions.append(finalPositionsTwo)
 
-            print(positions, "positions")
-            print(positionsFiltered, "positionsFiltered")
-            print(finalPositions, "finalPos")
-            print(finalPositionsTwo, "finalPosTwo")
-            print("---")
+            # print(positions, "positions")
+            # print(positionsFiltered, "positionsFiltered")
+            # print(finalPositions, "finalPos")
+            # print(finalPositionsTwo, "finalPosTwo")
+            # print("---")
 
-            print(len(self.genome) - self.kmerSize)
-            for i in finalPositionsTwo:
-                if i > len(self.genome) - self.kmerSize:
-                    finalPositionsTwo.remove(i)
-            # if read[0] == ">read_3/2":
-            #     break
+            # # print(len(self.genome) - self.kmerSize)
+            # for i in finalPositionsTwo:
+            #     if i > len(self.genome) - self.kmerSize:
+            #         finalPositionsTwo.remove(i)
+            # # if read[0] == ">read_3/2":
+            # #     break
             
-            print(finalPositionsTwo, "finalPosTwo")
-            print("---")
+            # print(finalPositionsTwo, "finalPosTwo")
+            # print("---")
 
             lastPos = None
             if len(finalPositionsTwo) > 0:
@@ -441,7 +441,7 @@ class readAligner():
                         lastPos = pos
                 if lastPos != None:
                     for j in range(1, self.kmerSize):
-                        print(lastPos+j)
+                        # print(lastPos+j)
                         self.coverageMap[lastPos+j] += 1
 
                 lastReadPos = finalPositionsTwo[0]
@@ -539,14 +539,14 @@ class readAligner():
 
 
 
-referenceGenome = "sample_1000\sample_1000_reference_genome.fasta"
+# referenceGenome = "sample_1000\sample_1000_reference_genome.fasta"
 # referenceGenome = "project1a_10000_reference_genome.fasta"
 
 # reads = "sample_1000\sample_1000_no_error_single_reads.fasta"
 # reads = "sample_1000\sample_1000_with_error_single_reads.fasta"
 # reads = "sample_1000\sample_1000_with_error_paired_reads.fasta"
 # reads = "sample_1000\sample_1000_no_error_paired_reads REDUCED.fasta"
-reads = "sample_1000\sample_1000_no_error_paired_reads.fasta"
+# reads = "sample_1000\sample_1000_no_error_paired_reads.fasta"
 # reads = "sample_1000\TEST.fasta"
 # reads = "sample_1000\DELETION.fasta"
 # reads = "sample_1000\INSERTION.fasta"
@@ -554,7 +554,7 @@ reads = "sample_1000\sample_1000_no_error_paired_reads.fasta"
 # reads = "project1a_10000_with_error_paired_reads.fasta"
 # reads = "test/project1a_10000_with_error_paired_reads_TEST.fasta"
 
-# referenceGenome = sys.argv[1]
-# reads = sys.argv[2]
+referenceGenome = sys.argv[1]
+reads = sys.argv[2]
 
 aligner = readAligner(genomeFile=referenceGenome, readFile=reads)
