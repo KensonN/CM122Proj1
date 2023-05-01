@@ -1,5 +1,6 @@
 import sys
 from copy import deepcopy
+import copy
 import time
 
 class readAligner():
@@ -9,7 +10,7 @@ class readAligner():
     reads = None
     genome = ""
     genomeMap = None
-    allowedErrors = 2
+    allowedErrors = 3
     insertions = dict()
     deletions = dict()
     coverageMap = dict()
@@ -20,7 +21,8 @@ class readAligner():
     finalDeletions = dict()
     finalSubstitutions = dict()
     positions = []
-    stepSize = 1
+    stepSize = 10
+    currentRead = None
 
     def __init__(self, genomeFile, readFile):
         self.genomeFile = genomeFile
@@ -80,7 +82,8 @@ class readAligner():
             else:
                 genomeMap[self.genome[i:i+self.kmerSize]] = [i]
         pass
-        self.genomeMap = deepcopy(genomeMap)
+        self.genomeMap = genomeMap
+        print("genome map complete")
 
     def writeGenomeMap(self):
         f = open("genomeMap.txt", "w")
@@ -115,14 +118,18 @@ class readAligner():
     #     return distance
 
     def getSubstitutions(self, genomeString, readString, alignment):
+        # print(genomeString)
+        # print(readString)
         if len(genomeString) != len(readString):
-            print(genomeString)
-            print(readString)
+            # print(genomeString)
+            # print(readString)
             raise ValueError("Input strings must have the same length")
         mutation = []
         for i in range(len(genomeString)):
             if genomeString[i] != readString[i] and genomeString[i] != ' ':
                 if (i+alignment, readString[i], genomeString[i]) not in self.substitutions:
+                    # if i+alignment == 333012:
+                    #     # print(self.currentRead)
                     self.substitutions[(i+alignment, readString[i], genomeString[i])] = 1
                 else:
                     self.substitutions[(i+alignment, readString[i], genomeString[i])] +=1
@@ -131,12 +138,50 @@ class readAligner():
 
     def getStreak(self, positions):
         avg = 0
-        counter = 0
+        avgCounter = 0
+        # print(positions, "pos in streak")
+        # print(positions == [[-10]]))
+        # for i in positions:
+        #     if i != [-10] and len(i) == 1:
+        #         avg += i[0]
+        #         avgCounter+=1
+
+        # print(positions, "positions")
+        positionsCopy = deepcopy(positions)
+        # if avgCounter == 0:
+            # print("in")
+        for count2, subArray in enumerate(positions):
+            if subArray == [-10]:
+                continue
+            for subArrayItem in subArray:
+                counter = 0
+                for count, subArray2 in enumerate(positions):
+                    for j in range(-1, 2):
+                        # print(subArrayItem+(count-count2)*self.stepSize + j, subArray2)
+                        if (subArrayItem+(count-count2)*self.stepSize + j in subArray2):
+                            # print("add")
+                            counter+=1
+                # print(subArrayItem, counter)
+                if counter == 1 and len(subArray) > 1:
+                    positionsCopy[count2].remove(subArrayItem)
+            if len(positionsCopy[count2]) == 0:
+                positionsCopy[count2] = [-10]
+            pass
+        # print(positionsCopy)
+        positions = deepcopy(positionsCopy)
         for i in positions:
             if i != [-10] and len(i) == 1:
                 avg += i[0]
-                counter+=1
-        avg /= counter
+                avgCounter+=1
+
+
+
+        if positions == [[-10]] or avgCounter == 0:
+            # print(positions)
+            # print("skippppp")
+            return []
+        avg /= avgCounter
+        # print(avg, "avg")
         positionsReduced = []
         for i in positions:
             if i!= [-10] and len(i) > 1:
@@ -150,6 +195,8 @@ class readAligner():
             else:
                 positionsReduced.append(i[0])
 
+        # print(positionsReduced, "reduced")
+
         streak = False
         currentStreakSum= 0
         currentStreakStartIndex = 0
@@ -162,38 +209,45 @@ class readAligner():
             # print("count:", count)
             # print(last)
             if i != -10:
-                if streak == False:
+                if streak == False: # start new streak
                     # print(i)
                     streak = True
                     currentStreakStartIndex = count
                     currentStreakSum = i
                     currentStreakCount = 1
+
+                    streakIndexes.append(currentStreakStartIndex)
+                    streakCounts.append(currentStreakCount)
+                    streakAvgs.append(currentStreakSum/currentStreakCount)
+
                 elif streak == True:
-                    if abs(i - last)/self.stepSize < 2:
+                    if abs(i - last)/self.stepSize < 2: #account for mutation
                         currentStreakSum += i
                         currentStreakCount += 1
                         if count == (len(positionsReduced)-1):
                             streak = False
-                            streakAvgs.append(currentStreakSum/currentStreakCount)
-                            streakIndexes.append(currentStreakStartIndex)
-                            streakCounts.append(currentStreakCount)
-                    else:
-                        # print("else")
-                        streakAvgs.append(currentStreakSum/currentStreakCount)
-                        streakIndexes.append(currentStreakStartIndex)
-                        streakCounts.append(currentStreakCount)
+                            streakAvgs[-1] = (currentStreakSum/currentStreakCount)
+                            streakCounts[-1] += 1
+                    else: # current streak ended by new number
                         currentStreakStartIndex = count
                         currentStreakSum = i
                         currentStreakCount = 1
+
+
+                        streakAvgs.append(currentStreakSum/currentStreakCount)
+                        streakIndexes.append(currentStreakStartIndex)
+                        streakCounts.append(currentStreakCount)
                 last = i
-            elif i == -10:
+            elif i == -10: #streak ended by -10
                 if streak == True:
                     streak = False
-                    streakAvgs.append(currentStreakSum/currentStreakCount)
-                    streakIndexes.append(currentStreakStartIndex)
-                    streakCounts.append(currentStreakCount)
+                    # streakAvgs.append(currentStreakSum/currentStreakCount)
+                    # streakIndexes.append(currentStreakStartIndex)
+                    # streakCounts.append(currentStreakCount)
 
 
+        # print(streakCounts, "streakCounts")
+        # print(streakIndexes, "streakIndexes")
 
         maxStreakCountIndex = streakCounts.index(max(streakCounts))
         maxStreakStartIndex = streakIndexes[maxStreakCountIndex]
@@ -204,7 +258,6 @@ class readAligner():
 
         streakIndexes.pop(maxStreakCountIndex)
         streakCounts.pop(maxStreakCountIndex)
-        # print(positionsReduced, "reduced")
         for count, i in enumerate(streakIndexes):
             # print(i, i+streakCounts[count])
             for j in range(i, i+streakCounts[count]):
@@ -245,9 +298,11 @@ class readAligner():
         lastReadPos = 0
         startTime = time.perf_counter()
         lastCurrentTime = 0
+        readCount = 0
+        keys = list(self.genomeMap.keys())[0:] #THIS LINE TAKES FOREVER
         for count, read in enumerate(self.reads):
             # print(lastReadPos)
-            # print(read)
+            self.currentRead = read
             readSplit = read[0].split("/")
             # lastReadPos = 0
             if len(readSplit) > 1:
@@ -255,35 +310,56 @@ class readAligner():
                     lastReadPos = 0
             else:
                 lastReadPos = 0
+            # lastReadPos = 771746
 
             currentTime = time.perf_counter() - startTime
             # print(read[0], '\n', "readPos:", lastReadPos, '\n', "currentTime:", round(currentTime, 3), '\n', "readTime:",  round(currentTime - lastCurrentTime, 3))
+            readCount += 1
 
-            # if count == len(self.reads) - 1:
-            #     print(read[0], lastReadPos, round(currentTime, 3), round(currentTime - lastCurrentTime, 3), end='\n')
-            # else:
-            #     print(read[0], lastReadPos, round(currentTime, 3), round(currentTime - lastCurrentTime, 3), end='\r')
+            if readCount % 10000 == 0:
+                if count == len(self.reads) - 1:
+                    print(read[0], round(currentTime, 3), round(currentTime - lastCurrentTime, 10), end='\n')
+                else:
+                    print(read[0], round(currentTime, 3), round(currentTime - lastCurrentTime, 10), end='\n')
+                lastCurrentTime = currentTime
+
 
             insertionState = False
             deletionState = False
 
-            lastCurrentTime = currentTime
             positions = [[-10]] * (int((len(read[1])/1-self.kmerSize)/self.stepSize) + 1)
             for kmerPos in range(0, len(read[1])-self.kmerSize+1, self.stepSize):
-                keys = list(self.genomeMap.keys())[lastReadPos:]
+                # keys = list(self.genomeMap.keys())[lastReadPos:]
+                # keys = list(self.genomeMap.keys())[0:] #THIS LINE TAKES FOREVER
                 counter = 0
-                for key in keys:
-                    if read[1][kmerPos:kmerPos+self.kmerSize] == key:
-                        if positions[int(kmerPos/self.stepSize)] == [-10]:
-                            positions[int(kmerPos/self.stepSize)] = deepcopy(self.genomeMap[key])
-                        else:
-                            positions[int(kmerPos/self.stepSize)] += deepcopy(self.genomeMap[key])
+
+                # for key in keys:
+                #     if read[1][kmerPos:kmerPos+self.kmerSize] == key:
+                #         currentTime = time.perf_counter() - startTime
+                #         # print(read[1])
+                #         lastCurrentTime = currentTime
+                #         if positions[int(kmerPos/self.stepSize)] == [-10]:
+                #             positions[int(kmerPos/self.stepSize)] = deepcopy(self.genomeMap[key])
+                #         else:
+                #             positions[int(kmerPos/self.stepSize)] += deepcopy(self.genomeMap[key])
+                #         break
+
+                kmerToCheck = read[1][kmerPos:kmerPos+self.kmerSize]
+
+                if kmerToCheck in self.genomeMap:
+                    if positions[int(kmerPos/self.stepSize)] == [-10]:
+                        positions[int(kmerPos/self.stepSize)] = copy.copy(self.genomeMap[kmerToCheck])
+                    else:
+                        positions[int(kmerPos/self.stepSize)] += copy.copy(self.genomeMap[kmerToCheck])
 
             if len(positions) == 0:
                 continue
 
             positionsFiltered = self.getStreak(positions)
-            
+
+            if positionsFiltered == []:
+                continue
+
             finalPositions = []
             last = None
             counter = 0
@@ -303,7 +379,7 @@ class readAligner():
                                 streak+=1
                                 pass
                 elif posItem != -10:
-                    if abs(posItem-last) <= 5:
+                    if abs(posItem-last) <= self.stepSize+1:
                         last = posItem
                         finalPositions.append(posItem)
                         streak += 1
@@ -339,63 +415,32 @@ class readAligner():
             first = None
             finalPositionsTwo = deepcopy(finalPositions)
             modifiedRead = read[1]
-
-            if -10 in finalPositions:
-                lastReadPos = 0
-                print()
-                print("skipping", read)
-                print()
-                continue
-                # f = open("skips.txt", "w")
-                # f.write("Skipping: ")
-                # f.write(str(read[0]))
-                # f.write(" ")
-                # f.write(str(read[1]))
-                # f.write('\n')
-                # continue
-
-            print(positions, "pos")
-            print(positionsFiltered, "posFilt")
-            print(finalPositions, "final")
-            print("---")
-
             
-            for k in finalPositions:
+            for count, k in enumerate(finalPositions):
                 if first == None:
                     if k != -10:
                         first = k
                     continue
-                # diff = (k - first)
-                # print("diff:", diff)
                 if k != first + 1*self.stepSize:
                     diff = (k - first)
-                    print("diff:", diff)
-                    # print(finalPositions)
-                    
-                    # print(positions)
-                    # print(positionsFiltered)
-                    # print(finalPositions)
                     if diff == 1+self.stepSize:
-                        # print(read)
-                        # print(finalPositions)
-                        # deletionLoc = int((k+first)/2)
-                        # self.coverageMap[deletionLoc] += 1
-                        # delIndex = finalPositions.index(first+2)
-                        # print(delIndex)
-                        # modifiedRead = modifiedRead[:delIndex] + self.genome[finalPositions[0] + delIndex] + modifiedRead[delIndex:]
+                        lastHamming = 999
+                        bestDeletionLoc = None
+                        bestDeletionIndex = 0
+                        for i in range(k-self.stepSize, k+1):
+                            # print(bestDeletionIndex)
+                            deletionLoc = i
+                            deletionIndex = int((deletionLoc-finalPositions[0]))
 
-                        # print(read[0])
-                        print("k", k, "first", first)
-                        # deletionLoc = int((k+first)/2)
-                        deletionLoc = k - self.stepSize
-                        print("deletionLoc:", deletionLoc)
-                        # self.coverageMap[deletionLoc] += 1
-                        delIndex = (finalPositions.index(first)+1)*self.stepSize
-                        print(delIndex, "delIndex")
-                        print(modifiedRead[:delIndex])
-                        modifiedRead = modifiedRead[:delIndex] + self.genome[deletionLoc] + modifiedRead[delIndex:]
-
-
+                            currentModifiedRead = read[1][:deletionIndex] + self.genome[deletionLoc] + read[1][deletionIndex:]
+                            currentHamming = self.hammingDistance(currentModifiedRead, self.genome[finalPositionsTwo[0]:finalPositionsTwo[0]+len(currentModifiedRead)])
+                            if currentHamming < lastHamming and currentHamming < 3:
+                                lastHamming = currentHamming
+                                bestDeletionLoc = deletionLoc
+                                bestDeletionIndex = deletionIndex
+                                modifiedRead = currentModifiedRead
+                                if currentHamming == 0:
+                                    break
                         if deletionLoc < 0:
                             print(read)
                             print(positions, "pos")
@@ -403,164 +448,114 @@ class readAligner():
                             print(finalPositionsTwo, "finalTwo")
                             print("---")
                             break
-                        deletion = (deletionLoc, self.genome[finalPositions[0] + delIndex])
-                        if deletion in self.deletions:
-                            self.deletions[deletion] += 1
+
+                        if bestDeletionLoc != None:
+                            deletion = (bestDeletionLoc, self.genome[finalPositions[0] + bestDeletionIndex])
+                            if deletion in self.deletions:
+                                self.deletions[deletion] += 1
+                            else:
+                                self.deletions[deletion] = 1
+                            deletionState = True
                         else:
-                            self.deletions[deletion] = 1
-                        deletionState = True
+                            pass
+
                     elif diff == self.stepSize-1:
-                        # print(positions)
-                        # print(positionsFiltered)
-                        # print(finalPositions)
+                        insertionLoc = k-1
+                        lastHamming = 999
+                        bestInsertionLoc = None
+                        bestInsertionIndex = None
+                        for i in range(k-self.stepSize, k+1):
+                            insertionLoc = i
+                            insertionIndex = int((insertionLoc-finalPositions[0]))+1
+                            currentModifiedRead = read[1][:insertionIndex] + read[1][insertionIndex+1:]
+                            currentHamming = self.hammingDistance(currentModifiedRead, self.genome[finalPositionsTwo[0]:finalPositionsTwo[0]+len(currentModifiedRead)])
+                            if currentHamming == 0 or (currentHamming < lastHamming and currentHamming < 2):
+                                lastHamming = currentHamming
+                                bestInsertionLoc = insertionLoc
+                                bestInsertionIndex = insertionIndex
+                                modifiedRead = currentModifiedRead
 
-                        insertionLoc = first-1
-
-                        # print("insertionLoc", insertionLoc)
-
-                        if insertionLoc < 0:
-                            print(read)
-                            print(positions, "pos")
-                            print(finalPositions, "final")
-                            print(finalPositionsTwo, "finalTwo")
-                            print("---")
-                            break
-                    
-                    # print(insertionLoc)
-                    # print(read)
-                    # print(positions, "pos")
-                    # print(finalPositions, "final")
-                    # print(finalPositionsTwo, "finalTwo")
-                    # print("---")
-                    # self.coverageMap[insertionLoc] -= 1
-
-                        # print("is in list", insertionLoc+1 in finalPositionsTwo)
-                        finalPositionsTwo.remove(insertionLoc+1)
-                        insertionIndex = finalPositions.index(insertionLoc+1)
-                        modifiedRead = modifiedRead[:insertionIndex] + modifiedRead[insertionIndex+1:]
-
-                        # print("insertion", insertionLoc)
-                        # print(read[1], "read")
-                        # print(self.genome[finalPositions[0]:finalPositions[0]+50], "genome")
-                        # print(modifiedRead ,"modified read")
-
-                        insertion = (insertionLoc, read[1][insertionIndex])
-                        if insertion in self.insertions:
-                            self.insertions[insertion] += 1
-                        else:
-                            self.insertions[insertion] = 1
-                        first = k
-                        insertionState = True
-
+                        if bestInsertionLoc != None:
+                            insertion = (bestInsertionLoc, read[1][bestInsertionIndex])
+                            # print(insertion)
+                            if insertion in self.insertions:
+                                self.insertions[insertion] += 1
+                            else:
+                                self.insertions[insertion] = 1
+                            first = k
+                            insertionState = True
                 first = k
 
-            # lastPos = None
             if len(finalPositionsTwo) > 0:
-            #     for pos in finalPositionsTwo:
-            #         for j in range(self.stepSize):
-            #             self.coverageMap[j+pos] += 1
-            #             lastPos = pos
-
-            #     if lastPos != None:
-            #         for j in range(1, self.kmerSize):
-            #             # print(lastPos+j)
-            #             self.coverageMap[lastPos+j] += 1
-            #             pass
                 for pos in range(finalPositionsTwo[0], finalPositionsTwo[-1]+self.kmerSize):
+                    # print("pos", pos)
                     self.coverageMap[pos] += 1
-                
-                # if 413 in finalPositionsTwo:
-                #     for pos in finalPositionsTwo:
-                #         if pos != -10:
-                #             # print(pos)
-                #             lastPos = pos
-                    # if lastPos != None:
-                    #     for j in range(1, self.kmerSize):
-                    #         # print(lastPos+j)
-                    #         # self.coverageMap[lastPos+j] += 1
-                    #         # pass
-                    #         # print(lastPos+j)
-                    #         pass
-                    #     pass
-                    # pass
-                    # print(self.coverageMap[414])
-                    
 
                 lastReadPos = finalPositionsTwo[0]
                 stringAlignment = 0
                 genomeString = ""
 
-                if finalPositionsTwo[0] == -10 and finalPositionsTwo[-1] == -10:
-                    stringAlignment = 999
-                elif finalPositionsTwo[0] == -10:
-                    genomeString = self.genome[finalPositionsTwo[-1]-len(modifiedRead)+self.kmerSize:finalPositionsTwo[-1]+self.kmerSize]
-                    stringAlignment = self.hammingDistance(modifiedRead, genomeString)
-                else:
-                    genomeString = self.genome[finalPositionsTwo[0]:finalPositionsTwo[0]+len(modifiedRead)]
-
-                    print(read[1], "read")
-                    print(genomeString, "genome")
-                    print(modifiedRead ,"modified read")
-                    print(stringAlignment, "stralign")
-                    print(self.hammingDistance(modifiedRead, genomeString))
-                    print("insertion", insertionState)
-                    print("deletion", deletionState)
-
-                    stringAlignment = self.hammingDistance(modifiedRead, genomeString)
+                genomeString = self.genome[finalPositionsTwo[0]:finalPositionsTwo[0]+len(modifiedRead)]
+                stringAlignment = self.hammingDistance(modifiedRead, genomeString)
 
                 # stringAlignment = self.hammingDistance(modifiedRead, genomeString)
-                self.allowedErrors=3
                 if [-10] != finalPositionsTwo and stringAlignment <= self.allowedErrors:
-                    
-                    mutation = self.getSubstitutions(modifiedRead, genomeString, finalPositionsTwo[0])
-            # print(self.coverageMap[414], read)  
-            # if firstPair == True:
-            #     # print("T")
-            #     firstPair = False
-            # elif firstPair == False:
-            #     # print("F")
-            #     firstPair = True
-            #     lastReadPos = 0
+                    # print("mutation")
+                    self.getSubstitutions(modifiedRead, genomeString, finalPositionsTwo[0])
         
-        print("Deletions:" )
-        for i in self.deletions:
-            print(i, self.deletions[i], self.coverageMap[i[0]])
-        # print("---")
-        # print("deletions: ", self.deletions)
-        print("Insertions: ")
-        for i in self.insertions:
-            print(i, self.insertions[i], self.coverageMap[i[0]])
-        # print("---")
-        # print("Substitutions:")
-        print("Subsitutions")
-        for i in self.substitutions:
-            print(i, self.substitutions[i], self.coverageMap[i[0]])
-
-        print('\n', "---", '\n')
-
         # print("Deletions:" )
         # for i in self.deletions:
-        #     # if self.deletions[i] / self.coverageMap[i[0]] > 0.20 and self.coverageMap[i[0]] > 1 and self.deletions[i] > 1:
-        #     if self.coverageMap[i[0]] > 1 and self.deletions[i] > 1:
-        #         self.finalDeletions[i] = self.deletions[i]
-        #         print(i, self.deletions[i], self.coverageMap[i[0]])
+        #     print(i)
+        #     print(i, self.deletions[i], self.coverageMap[i[0]])
         # # print("---")
         # # print("deletions: ", self.deletions)
         # print("Insertions: ")
         # for i in self.insertions:
-        #     if self.coverageMap[i[0]] > 1 and self.insertions[i] > 1:
-        #     # if self.insertions[i] / self.coverageMap[i[0]] > 0.20 and self.coverageMap[i[0]] > 1 and self.insertions[i] > 1:
-        #         self.finalInsertions[i] = self.insertions[i]
-        #         print(i, self.insertions[i], self.coverageMap[i[0]])
+        #     print(i, self.insertions[i], self.coverageMap[i[0]])
         # # print("---")
         # # print("Substitutions:")
-        # print("Substitutions")
+        # print("Subsitutions")
         # for i in self.substitutions:
-        #     if self.substitutions[i] / self.coverageMap[i[0]] > 0.5 and self.coverageMap[i[0]] > 1 and self.substitutions[i] > 1:
-        #         self.finalSubstitutions[i] = self.substitutions[i]
-        #         print(i, self.substitutions[i], self.coverageMap[i[0]])
+        #     print(i, self.substitutions[i], self.coverageMap[i[0]])
+        
+        for i in self.deletions:
+            if self.coverageMap[i[0]] > 1 and self.deletions[i] > 1:
+                self.finalDeletions[i] = self.deletions[i]
+        for i in self.insertions:
+            if self.coverageMap[i[0]] > 1 and self.insertions[i] > 1:
+                self.finalInsertions[i] = self.insertions[i]
+        for i in self.substitutions:
+            if self.coverageMap[i[0]] == 0:
+                self.coverageMap[i[0]] +=1
+
+
+            if self.substitutions[i] / self.coverageMap[i[0]] >= 0.5 and self.coverageMap[i[0]] > 1 and self.substitutions[i] > 1:
+                self.finalSubstitutions[i] = self.substitutions[i]
+
 
     def writeResults(self):
+        f = open("mutationsRAW.txt", "w")
+        for i in self.substitutions:
+            f.write(">S")
+            f.write(str(i[0]))
+            f.write(" ")
+            f.write(str(i[1]))
+            f.write(" ")
+            f.write(str(i[2]))
+            f.write('\n')
+        for i in self.insertions:
+            f.write(">I")
+            f.write(str(i[0]))
+            f.write(" ")
+            f.write(str(i[1]))
+            f.write('\n')
+        for i in self.deletions:
+            f.write(">D")
+            f.write(str(i[0]))
+            f.write(" ")
+            f.write(str(i[1]))
+            f.write('\n')
+
         f = open("mutations.txt", "w")
         for i in self.finalSubstitutions:
             f.write(">S")
@@ -585,8 +580,9 @@ class readAligner():
 
 
 
-referenceGenome = "sample_1000\sample_1000_reference_genome.fasta"
+# referenceGenome = "sample_1000\sample_1000_reference_genome.fasta"
 # referenceGenome = "project1a_10000_reference_genome.fasta"
+referenceGenome = "project1b_1000000_reference_genome.fasta"
 
 # reads = "sample_1000\sample_1000_no_error_single_reads.fasta"
 # reads = "sample_1000\sample_1000_with_error_single_reads.fasta"
@@ -595,11 +591,13 @@ referenceGenome = "sample_1000\sample_1000_reference_genome.fasta"
 # reads = "sample_1000\sample_1000_no_error_paired_reads.fasta"
 # reads = "sample_1000\TEST.fasta"
 # reads = "sample_1000\DELETION.fasta"
-reads = "sample_1000\SINGLE_DELETION.fasta"
+# reads = "sample_1000\SINGLE_DELETION.fasta"
 # reads = "sample_1000\INSERTION.fasta"
 # reads = "sample_1000\REDUCED.fasta"
 # reads = "project1a_10000_with_error_paired_reads.fasta"
 # reads = "test/project1a_10000_with_error_paired_reads_TEST.fasta"
+reads = "project1b_1000000_with_error_paired_reads.fasta"
+# reads = "project1b_1000000_with_error_paired_reads_TEST.fasta"
 
 if len(sys.argv) > 1:
     referenceGenome = sys.argv[1]
